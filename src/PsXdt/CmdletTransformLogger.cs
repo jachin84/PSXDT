@@ -17,7 +17,8 @@ namespace PsXdt
             _cmdlet = cmdlet ?? throw new ArgumentNullException(nameof(cmdlet));
         }
 
-        public string IndentString => string.Concat(Enumerable.Repeat(IndentStringPiece, _indentLevel));
+        public string IndentString =>
+            _indentLevel == 0 ? string.Empty : string.Concat(Enumerable.Repeat(IndentStringPiece, _indentLevel));
 
 
         #region Implementation of IXmlTransformationLogger
@@ -29,72 +30,67 @@ namespace PsXdt
 
         public void LogMessage(MessageType type, string message, params object[] messageArgs)
         {
-            bool writeVerbose;
-            switch (type)
-            {
-                case MessageType.Normal:
-                    importance = MessageImportance.Normal;
-                    break;
-                case MessageType.Verbose:
-                    importance = MessageImportance.Low;
-                    break;
-                default:
-                    Debug.Fail("Unknown MessageType");
-                    importance = MessageImportance.Normal;
-                    break;
-            }
-
-            if (_useSections)
-            {
-                message = string.Concat(IndentString, message);
-            }
-            _cmdlet.WriteVerbose(message);
-            _loggingHelper.LogMessage(importance, message, messageArgs);
+            message = string.Concat(IndentString, message);
+            _cmdlet.WriteVerbose(string.Format(message, messageArgs));
         }
 
         public void LogWarning(string message, params object[] messageArgs)
         {
-            throw new NotImplementedException();
+            _cmdlet.WriteWarning(string.Format(message, messageArgs));
         }
 
         public void LogWarning(string file, string message, params object[] messageArgs)
         {
-            throw new NotImplementedException();
+            message = $"{string.Format(message, messageArgs)}. File: {file}.";
+            _cmdlet.WriteWarning(message);
         }
 
         public void LogWarning(string file, int lineNumber, int linePosition, string message, params object[] messageArgs)
         {
-            throw new NotImplementedException();
+            message = $"{string.Format(message, messageArgs)}. File: {file}. Line Number: {lineNumber}. Line Position: {linePosition}";
+            _cmdlet.WriteWarning(message);
         }
 
         public void LogError(string message, params object[] messageArgs)
         {
-            throw new NotImplementedException();
+            var exeception = new InvalidOperationException(string.Format(message, messageArgs));
+            _cmdlet.WriteError(
+                new ErrorRecord(exeception, null,ErrorCategory.InvalidOperation, null));
         }
 
         public void LogError(string file, string message, params object[] messageArgs)
         {
-            throw new NotImplementedException();
+            message = $"{string.Format(message, messageArgs)}. File: {file}.";
+            var exception = new InvalidOperationException(string.Format(message, messageArgs));
+            _cmdlet.WriteError(
+                new ErrorRecord(exception, null, ErrorCategory.InvalidOperation, null));
         }
 
         public void LogError(string file, int lineNumber, int linePosition, string message, params object[] messageArgs)
         {
-            throw new NotImplementedException();
+            message = $"{string.Format(message, messageArgs)}. File: {file}. Line Number: {lineNumber}. Line Position: {linePosition}";
+            var exception = new InvalidOperationException(string.Format(message, messageArgs));
+            _cmdlet.WriteError(
+                new ErrorRecord(exception, null, ErrorCategory.InvalidOperation, null));
         }
 
         public void LogErrorFromException(Exception ex)
         {
-            throw new NotImplementedException();
+            _cmdlet.WriteError(new ErrorRecord(ex, null, ErrorCategory.InvalidOperation, null));
         }
 
         public void LogErrorFromException(Exception ex, string file)
         {
-            throw new NotImplementedException();
+            ex.Data.Add("File", file);
+            _cmdlet.WriteError(new ErrorRecord(ex, null, ErrorCategory.InvalidOperation, null));
         }
 
         public void LogErrorFromException(Exception ex, string file, int lineNumber, int linePosition)
         {
-            throw new NotImplementedException();
+            ex.Data.Add("File", file);
+            ex.Data.Add("LineNumber", lineNumber);
+            ex.Data.Add("LinePosition",linePosition);
+            _cmdlet.WriteError(new ErrorRecord(ex, null, ErrorCategory.InvalidOperation, null));
         }
 
         public void StartSection(string message, params object[] messageArgs)
@@ -104,17 +100,23 @@ namespace PsXdt
 
         public void StartSection(MessageType type, string message, params object[] messageArgs)
         {
-            throw new NotImplementedException();
+            LogMessage(type, message, messageArgs);
+            _indentLevel++;
         }
 
         public void EndSection(string message, params object[] messageArgs)
         {
-            throw new NotImplementedException();
+            EndSection(MessageType.Normal, message, messageArgs);
         }
 
         public void EndSection(MessageType type, string message, params object[] messageArgs)
         {
-            throw new NotImplementedException();
+            Debug.Assert(_indentLevel > 0, "There must be at least one section started");
+            if (_indentLevel > 0)
+            {
+                _indentLevel--;
+            }
+            LogMessage(type, message, messageArgs);
         }
 
         #endregion
